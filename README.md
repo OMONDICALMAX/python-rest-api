@@ -1,29 +1,25 @@
-inventory-management-system/
+
 │
-├── app/
-│   ├── __init__.py
-│   ├── routes.py
-│   ├── models.py
-│   ├── storage.py
-│   └── external_api.py
-│
-├── cli/
-│   ├── __init__.py
-│   └── main.py
-│
-├── data/
-│   └── inventory.json
-│
-├── tests/
-│   ├── __init__.py
-│   ├── test_create.py
-│   ├── test_read.py
-│   ├── test_update.py
-│   ├── test_delete.py
-│   ├── test_external_api.py
-│   └── test_cli.py
-│
-├── run.py
+├── app.py
+├── cli.py
 ├── requirements.txt
 ├── README.md
-└── .gitignore
+├── .gitignore
+│
+├── services/
+│   ├── __init__.py
+│   └── openfoodfacts.py
+│
+├── templates/
+│   └── index.html
+│
+├── static/
+│   ├── app.js
+│   └── style.css
+│
+└── tests/
+    ├── __init__.py
+    ├── conftest.py
+    ├── test_inventory.py
+    ├── test_external_api.py
+    └── test_cli.py
