@@ -1,6 +1,158 @@
 from flask import Flask, jsonify, request
+from services.openfoodfacts import (
+    OpenFoodFactsAPIError,
+    get_product_by_barcode,
+    search_product_by_name
+)
 
 app = Flask(__name__)
+
+@app.route("/products/barcode/<barcode>", methods=["GET"])
+def find_product_by_barcode(barcode):
+    try:
+        product = get_product_by_barcode(barcode)
+
+    except Exception as error:
+        return jsonify({
+            "error": "OpenFoodFacts API request failed",
+            "details": str(error)
+        }), 502
+
+    if product is None:
+        return jsonify({
+            "error": "Product not found on OpenFoodFacts",
+            "barcode": barcode
+        }), 404
+
+    return jsonify({
+        "source": "OpenFoodFacts",
+        "product": product
+    }), 200
+
+@app.route("/products/search", methods=["GET"])
+def find_product_by_name():
+    product_name = request.args.get("name")
+
+    if not product_name:
+        return jsonify({
+            "error": "Product name is required"
+        }), 400
+
+    try:
+        product = search_product_by_name(product_name)
+
+    except OpenFoodFactsAPIError as error:
+        return jsonify({
+            "error": "OpenFoodFacts API request failed",
+            "details": str(error)
+        }), 502
+
+    if product is None:
+        return jsonify({
+            "error": "Product not found on OpenFoodFacts",
+            "name": product_name
+        }), 404
+
+    return jsonify({
+        "source": "OpenFoodFacts",
+        "product": product
+    }), 200
+
+@app.route("/inventory/import", methods=["POST"])
+def import_inventory_item():
+    data = request.get_json(silent=True)
+
+    if not data:
+        return jsonify({
+            "error": "Request body must contain JSON data"
+        }), 400
+
+    barcode = data.get("barcode")
+    product_name = data.get("product_name")
+
+    if not barcode and not product_name:
+        return jsonify({
+            "error": "Provide either barcode or product_name"
+        }), 400
+
+    if "price" not in data:
+        return jsonify({
+            "error": "Price is required"
+        }), 400
+
+    if "stock" not in data:
+        return jsonify({
+            "error": "Stock is required"
+        }), 400
+
+    try:
+        price = float(data["price"])
+        stock = int(data["stock"])
+    except (ValueError, TypeError):
+        return jsonify({
+            "error": "Price must be a number and stock must be an integer"
+        }), 400
+
+    if price < 0:
+        return jsonify({
+            "error": "Price cannot be negative"
+        }), 400
+
+    if stock < 0:
+        return jsonify({
+            "error": "Stock cannot be negative"
+        }), 400
+
+    try:
+        if barcode:
+            product = get_product_by_barcode(barcode)
+        else:
+            product = search_product_by_name(product_name)
+
+    except OpenFoodFactsAPIError as error:
+        return jsonify({
+            "error": str(error)
+        }), 502
+
+    if product is None:
+        return jsonify({
+            "error": "Product not found on OpenFoodFacts"
+        }), 404
+
+    product_barcode = product.get("code") or product.get("barcode") or barcode
+
+    if product_barcode:
+        for item in inventory:
+            if item["barcode"] == product_barcode:
+                return jsonify({
+                    "error": "Product already exists in inventory",
+                    "item": item
+                }), 409
+
+    new_id = max(
+        [item["id"] for item in inventory],
+        default=0
+    ) + 1
+
+    new_item = {
+        "id": new_id,
+        "product_name": product.get("product_name", ""),
+        "brands": product.get("brands", ""),
+        "ingredients_text": product.get("ingredients_text", ""),
+        "barcode": product_barcode or "",
+        "categories": product.get("categories", ""),
+        "quantity": product.get("quantity", ""),
+        "price": price,
+        "stock": stock
+    }
+
+    inventory.append(new_item)
+
+    return jsonify({
+        "message": "Product imported successfully",
+        "item": new_item
+    }), 201
+
 
 
 # Simulated inventory database

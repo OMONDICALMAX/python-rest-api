@@ -1,6 +1,94 @@
 import pytest
+from unittest.mock import patch
 
 from app import app, inventory
+
+@patch("app.get_product_by_barcode")
+def test_import_inventory_item_by_barcode(mock_get_product, client):
+    mock_get_product.return_value = {
+        "product_name": "Organic Almond Milk",
+        "brands": "Silk",
+        "ingredients_text": (
+            "Filtered water, almonds, cane sugar"
+        ),
+        "code": "9999999999999",
+        "categories": "Plant-based beverages",
+        "quantity": "1 L"
+    }
+
+    response = client.post(
+        "/inventory/import",
+        json={
+            "barcode": "9999999999999",
+            "price": 500,
+            "stock": 10
+        }
+    )
+
+    assert response.status_code == 201
+
+    data = response.get_json()
+
+    assert data["message"] == "Product imported successfully"
+    assert data["item"]["product_name"] == "Organic Almond Milk"
+    assert data["item"]["brands"] == "Silk"
+    assert data["item"]["price"] == 500.0
+    assert data["item"]["stock"] == 10
+
+    assert len(inventory) == 4
+
+@patch("app.search_product_by_name")
+def test_import_inventory_item_by_name(mock_search_product, client):
+    mock_search_product.return_value = {
+        "product_name": "Oat Milk",
+        "brands": "Oatly",
+        "ingredients_text": "Water, oats, salt",
+        "code": "8888888888888",
+        "categories": "Plant-based beverages",
+        "quantity": "1 L"
+    }
+
+    response = client.post(
+        "/inventory/import",
+        json={
+            "product_name": "oat milk",
+            "price": 550,
+            "stock": 15
+        }
+    )
+
+    assert response.status_code == 201
+
+    data = response.get_json()
+
+    assert data["item"]["product_name"] == "Oat Milk"
+    assert data["item"]["price"] == 550.0
+    assert data["item"]["stock"] == 15
+
+    mock_search_product.assert_called_once_with("oat milk")
+
+@patch("app.get_product_by_barcode")
+def test_import_product_not_found(mock_get_product, client):
+    mock_get_product.return_value = None
+
+    response = client.post(
+        "/inventory/import",
+        json={
+            "barcode": "9999999999999",
+            "price": 500,
+            "stock": 10
+        }
+    )
+
+    assert response.status_code == 404
+
+    data = response.get_json()
+
+    assert data["error"] == (
+        "Product not found on OpenFoodFacts"
+    )
+
+
 
 
 @pytest.fixture
